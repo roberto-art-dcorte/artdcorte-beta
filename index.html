@@ -62,8 +62,23 @@ function diasHasta(f) {
 }
 const fmtCorto = d => d.toLocaleDateString("es-ES",{day:"2-digit",month:"short"});
 const fmtFecha = d => d.toLocaleDateString("es-ES",{day:"2-digit",month:"2-digit",year:"numeric"});
+const fmtLargo = d => d.toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
 const ESTADO_COLOR = {Confirmado:"#27AE60",Pendiente:"#F39C12",Cancelado:"#E74C3C",Realizado:"#7F8C8D"};
 const TIPO_COLOR   = {Boda:"#C0392B",Feria:"#8B4513","Inauguración":"#D4A820",Corporativo:"#1A3A5C",Evento:"#2980B9","Cóctel":"#8E44AD"};
+
+// Extraer cortadores de un string (soporta separadores , / +)
+function parseCortadores(str) {
+  if (!str) return [];
+  return str.split(/,|\/|\+/).map(c=>c.trim()).filter(Boolean);
+}
+
+// Comprobar si un cortador está asignado a un evento (busca coincidencia parcial)
+function cortadorEnEvento(nombreCortador, evCortador) {
+  if (!evCortador || !nombreCortador) return false;
+  const cortadores = parseCortadores(evCortador);
+  const target = nombreCortador.toLowerCase().trim();
+  return cortadores.some(c => c.toLowerCase().includes(target) || target.includes(c.toLowerCase()));
+}
 
 const Badge = ({text,color,small=false}) => (
   <span style={{
@@ -102,20 +117,20 @@ const StatCard = ({label,value,sub,accent,alert=false}) => (
   </div>
 );
 
-function EventoCard({ev,onClick,selected}) {
+function EventoCard({ev,onClick,selected,compacto=false}) {
   const color = colorCortador(ev.cortador);
   const semana = esSemana(ev.fecha);
-  const cortadores = ev.cortador ? ev.cortador.split(/,|\/|\+/).map(c=>c.trim()).filter(Boolean) : [];
+  const cortadores = parseCortadores(ev.cortador);
   return (
     <div onClick={()=>onClick(ev)} style={{
       background:selected?"#2A1808":"#1A1008",
       border:`1px solid ${selected?"#C0392B":"#2A1A0A"}`,
-      borderRadius:14,padding:"14px 16px",cursor:"pointer",
+      borderRadius:14,padding: compacto ? "12px 14px" : "14px 16px", cursor:"pointer",
       borderLeft:`3px solid ${semana?"#D4A820":color}`,
     }}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
         <div style={{flex:1,minWidth:0,paddingRight:8}}>
-          <div style={{fontSize:14,fontWeight:600,color:"#F5ECD8",lineHeight:1.3,marginBottom:3}}>{ev.cliente}</div>
+          <div style={{fontSize:compacto?13:14,fontWeight:600,color:"#F5ECD8",lineHeight:1.3,marginBottom:3}}>{ev.cliente}</div>
           <div style={{fontSize:11,color:"#8A7060"}}>
             {fmtCorto(ev.fecha)} · {ev.turno}{ev.jamones>0?` · 🐷 ${ev.jamones}`:""}
           </div>
@@ -138,10 +153,11 @@ function EventoCard({ev,onClick,selected}) {
 
 function EventoDetalle({ev,onClose}) {
   if (!ev) return null;
-  const cortadores = ev.cortador ? ev.cortador.split(/,|\/|\+/).map(c=>c.trim()).filter(Boolean) : [];
+  const cortadores = parseCortadores(ev.cortador);
+  const tieneObs = ev.obs && ev.obs.trim();
   return (
     <div onClick={onClose} style={{position:"fixed",inset:0,zIndex:200,background:"rgba(0,0,0,0.85)",display:"flex",flexDirection:"column",justifyContent:"flex-end"}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:"#1A1008",borderRadius:"20px 20px 0 0",padding:"20px 20px 32px",maxHeight:"80vh",overflowY:"auto",borderTop:"2px solid #C0392B"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"#1A1008",borderRadius:"20px 20px 0 0",padding:"20px 20px 32px",maxHeight:"85vh",overflowY:"auto",borderTop:"2px solid #C0392B"}}>
         <div style={{width:40,height:4,background:"#3A2810",borderRadius:2,margin:"0 auto 18px"}}/>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
           <Badge text={ev.tipo||"Evento"} color={TIPO_COLOR[ev.tipo]||"#2980B9"}/>
@@ -175,35 +191,76 @@ function EventoDetalle({ev,onClose}) {
             </div>
           </div>
         </div>
+
+        {/* OBSERVACIONES */}
+        {tieneObs && (
+          <div style={{display:"flex",gap:12,alignItems:"flex-start",marginBottom:14}}>
+            <span style={{fontSize:15,width:20,flexShrink:0}}>📝</span>
+            <div style={{flex:1}}>
+              <div style={{fontSize:10,color:"#8A7060",letterSpacing:1,textTransform:"uppercase",marginBottom:6}}>Observaciones</div>
+              <div style={{
+                fontSize:13,color:"#F5ECD8",lineHeight:1.5,
+                background:"#0D0905",border:"1px solid #2A1A0A",
+                borderRadius:8,padding:"10px 12px",whiteSpace:"pre-wrap",
+              }}>{ev.obs}</div>
+            </div>
+          </div>
+        )}
+
         {!ev.cortador && <div style={{background:"#E74C3C11",border:"1px solid #E74C3C33",borderRadius:10,padding:"11px 14px",fontSize:12,color:"#E74C3C",marginTop:4}}>⚠️ Asigna un cortador antes de la fecha del evento</div>}
         {esSemana(ev.fecha) && <div style={{background:"#D4A82011",border:"1px solid #D4A82044",borderRadius:10,padding:"11px 14px",fontSize:12,color:"#D4A820",marginTop:8}}>🃏 Evento de esta semana — tarjeta activa en Trello</div>}
-        {ev.obs && <div style={{background:"#1E1205",border:"1px solid #3A2810",borderRadius:10,padding:"11px 14px",fontSize:12,color:"#8A7060",marginTop:8}}>📝 {ev.obs}</div>}
       </div>
     </div>
   );
 }
 
-function CalMini({eventos}) {
+// Calendario con click en día
+function CalMini({eventos, diaSeleccionado, setDiaSeleccionado}) {
   const [mes,setMes] = useState(new Date().getMonth());
-  const año = new Date().getFullYear();
+  const [año,setAño] = useState(new Date().getFullYear());
   const offset = (new Date(año,mes,1).getDay()+6)%7;
   const dias = new Date(año,mes+1,0).getDate();
-  const meses=["Enero","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+  const meses=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+
   const evMes={};
   eventos.forEach(ev=>{
-    if(ev.fecha instanceof Date && ev.fecha.getMonth()===mes){
+    if(ev.fecha instanceof Date && ev.fecha.getMonth()===mes && ev.fecha.getFullYear()===año){
       const d=ev.fecha.getDate();
       if(!evMes[d]) evMes[d]=[];
       evMes[d].push(ev);
     }
   });
-  const hoyDia=new Date().getDate(), hoyMes=new Date().getMonth();
+
+  const hoyDia=new Date().getDate();
+  const hoyMes=new Date().getMonth();
+  const hoyAño=new Date().getFullYear();
+
+  const cambiarMes = (delta) => {
+    let nuevoMes = mes + delta;
+    let nuevoAño = año;
+    if (nuevoMes < 0) { nuevoMes = 11; nuevoAño--; }
+    if (nuevoMes > 11) { nuevoMes = 0; nuevoAño++; }
+    setMes(nuevoMes);
+    setAño(nuevoAño);
+    setDiaSeleccionado(null);
+  };
+
+  const handleClickDia = (d) => {
+    const evs = evMes[d] || [];
+    if (evs.length === 0) {
+      setDiaSeleccionado(null);
+      return;
+    }
+    const key = `${año}-${String(mes+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+    setDiaSeleccionado(diaSeleccionado === key ? null : key);
+  };
+
   return (
     <div style={{background:"#1A1008",border:"1px solid #3A2810",borderRadius:16,padding:"20px"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-        <button onClick={()=>setMes(m=>Math.max(0,m-1))} style={{background:"none",border:"none",color:"#8A7060",cursor:"pointer",fontSize:22,padding:"0 8px",lineHeight:1}}>‹</button>
+        <button onClick={()=>cambiarMes(-1)} style={{background:"none",border:"none",color:"#8A7060",cursor:"pointer",fontSize:22,padding:"0 12px",lineHeight:1}}>‹</button>
         <span style={{fontFamily:"'Playfair Display',serif",fontSize:17,fontWeight:700,color:"#F5ECD8"}}>{meses[mes]} {año}</span>
-        <button onClick={()=>setMes(m=>Math.min(11,m+1))} style={{background:"none",border:"none",color:"#8A7060",cursor:"pointer",fontSize:22,padding:"0 8px",lineHeight:1}}>›</button>
+        <button onClick={()=>cambiarMes(1)} style={{background:"none",border:"none",color:"#8A7060",cursor:"pointer",fontSize:22,padding:"0 12px",lineHeight:1}}>›</button>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3,marginBottom:6}}>
         {["L","M","X","J","V","S","D"].map(d=><div key={d} style={{textAlign:"center",fontSize:9,color:"#5A4A3A",letterSpacing:1}}>{d}</div>)}
@@ -211,16 +268,152 @@ function CalMini({eventos}) {
       <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}}>
         {Array(offset).fill(null).map((_,i)=><div key={"e"+i}/>)}
         {Array(dias).fill(null).map((_,i)=>{
-          const d=i+1,evs=evMes[d]||[],esHoy=d===hoyDia&&mes===hoyMes;
+          const d=i+1;
+          const evs=evMes[d]||[];
+          const esHoy=d===hoyDia&&mes===hoyMes&&año===hoyAño;
           const col=evs.length?colorCortador(evs[0].cortador):null;
+          const key = `${año}-${String(mes+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+          const seleccionado = diaSeleccionado === key;
+          const tieneEvs = evs.length > 0;
           return (
-            <div key={d} style={{aspectRatio:"1",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",borderRadius:7,background:esHoy?"#C0392B22":evs.length?col+"15":"transparent",border:esHoy?"1px solid #C0392B55":evs.length?`1px solid ${col}33`:"1px solid transparent"}}>
-              <span style={{fontSize:11,color:esHoy?"#C0392B":evs.length?"#F5ECD8":"#5A4A3A",fontWeight:esHoy||evs.length?600:400}}>{d}</span>
-              {evs.length>0&&<div style={{display:"flex",gap:1,marginTop:1}}>{evs.slice(0,3).map((ev,i)=><div key={i} style={{width:3,height:3,borderRadius:"50%",background:colorCortador(ev.cortador)}}/>)}</div>}
+            <div
+              key={d}
+              onClick={() => handleClickDia(d)}
+              style={{
+                aspectRatio:"1",display:"flex",flexDirection:"column",
+                alignItems:"center",justifyContent:"center",borderRadius:7,
+                background: seleccionado ? "#C0392B" : esHoy ? "#C0392B22" : evs.length ? col+"15" : "transparent",
+                border: seleccionado ? "1px solid #C0392B" : esHoy ? "1px solid #C0392B55" : evs.length ? `1px solid ${col}33` : "1px solid transparent",
+                cursor: tieneEvs ? "pointer" : "default",
+                position: "relative",
+              }}
+            >
+              <span style={{
+                fontSize:11,
+                color: seleccionado ? "#FFF" : esHoy ? "#C0392B" : evs.length ? "#F5ECD8" : "#5A4A3A",
+                fontWeight:esHoy||evs.length?600:400
+              }}>{d}</span>
+              {evs.length>0 && !seleccionado && (
+                <div style={{
+                  position:"absolute", bottom:3, right:3,
+                  background:col, color:"#FFF",
+                  borderRadius:8, padding:"0 4px",
+                  fontSize:8, fontWeight:700, minWidth:12, textAlign:"center",
+                  lineHeight:1.4,
+                }}>{evs.length}</div>
+              )}
             </div>
           );
         })}
       </div>
+    </div>
+  );
+}
+
+// Lista de eventos de un día concreto (debajo del calendario)
+function EventosDelDia({diaSeleccionado, eventos, onClickEvento}) {
+  if (!diaSeleccionado) return null;
+
+  const [año,mes,dia] = diaSeleccionado.split("-").map(Number);
+  const evs = eventos.filter(e =>
+    e.fecha.getFullYear() === año &&
+    e.fecha.getMonth() === mes - 1 &&
+    e.fecha.getDate() === dia
+  ).sort((a,b) => (a.turno||"").localeCompare(b.turno||""));
+
+  if (evs.length === 0) return null;
+
+  const fechaObj = new Date(año, mes-1, dia);
+
+  return (
+    <div style={{marginTop:16}} className="slide-up">
+      <div style={{
+        display:"flex", alignItems:"center", gap:10, marginBottom:12,
+        paddingBottom:10, borderBottom:"1px solid #2A1A0A",
+      }}>
+        <div style={{
+          width:42, height:42, borderRadius:10,
+          background:"#C0392B", color:"#FFF",
+          display:"flex", flexDirection:"column",
+          alignItems:"center", justifyContent:"center",
+          fontFamily:"'Playfair Display',serif",
+        }}>
+          <div style={{fontSize:16, fontWeight:900, lineHeight:1}}>{dia}</div>
+          <div style={{fontSize:8, textTransform:"uppercase", letterSpacing:1, opacity:0.8}}>
+            {["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"][mes-1]}
+          </div>
+        </div>
+        <div>
+          <div style={{fontSize:14, color:"#F5ECD8", fontFamily:"'Playfair Display',serif",fontWeight:700, textTransform:"capitalize"}}>
+            {fechaObj.toLocaleDateString("es-ES",{weekday:"long"})}
+          </div>
+          <div style={{fontSize:11,color:"#8A7060"}}>{evs.length} evento{evs.length!==1?"s":""}</div>
+        </div>
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {evs.map(ev => (
+          <EventoCard key={ev.num} ev={ev} onClick={onClickEvento} compacto/>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Card cortador con expansión de eventos
+function CortadorCard({cortador, eventos, expandido, onToggle, onClickEvento}) {
+  const col = cortador.color || colorCortador(cortador.nombre);
+
+  // Filtrar eventos del cortador (próximos)
+  const eventosCortador = eventos
+    .filter(e => cortadorEnEvento(cortador.nombre, e.cortador) && e.fecha >= HOY)
+    .sort((a,b) => a.fecha - b.fecha);
+
+  return (
+    <div style={{
+      background:"#1A1008", border:`1px solid ${expandido ? col+"66" : "#3A2810"}`,
+      borderRadius:12, borderTop:`3px solid ${col}`,
+      gridColumn: expandido ? "1 / -1" : "auto",
+      transition:"grid-column 0.2s",
+    }}>
+      <div
+        onClick={onToggle}
+        style={{padding:"14px 12px", cursor:"pointer"}}
+      >
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+          <div>
+            <div style={{fontFamily:"'Playfair Display',serif",fontSize:15,fontWeight:700,color:"#F5ECD8"}}>{cortador.nombre}</div>
+            <div style={{fontSize:10,color:cortador.tieneTablero?"#27AE60":"#E74C3C",marginTop:3}}>
+              {cortador.tieneTablero?"● Trello":"○ Sin tablero"}
+            </div>
+            <div style={{fontSize:11,color:"#8A7060",marginTop:6}}>
+              {eventosCortador.length} evento{eventosCortador.length!==1?"s":""} próximo{eventosCortador.length!==1?"s":""}
+            </div>
+          </div>
+          <div style={{width:32,height:32,borderRadius:"50%",background:col+"22",border:`2px solid ${col}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:col}}>
+            {cortador.nombre[0]}
+          </div>
+        </div>
+      </div>
+
+      {/* Panel expandido con eventos */}
+      {expandido && (
+        <div className="slide-up" style={{
+          padding:"4px 12px 14px",
+          borderTop:`1px solid #2A1A0A`,
+        }}>
+          {eventosCortador.length === 0 ? (
+            <div style={{padding:"16px 0",textAlign:"center",color:"#5A4A3A",fontSize:12}}>
+              Sin eventos próximos asignados
+            </div>
+          ) : (
+            <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:10}}>
+              {eventosCortador.map(ev=>(
+                <EventoCard key={ev.num} ev={ev} onClick={onClickEvento} compacto/>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -230,6 +423,8 @@ function App() {
   const [filtro,setFiltro]       = useState("proximos");
   const [busqueda,setBusqueda]   = useState("");
   const [eventoSel,setEventoSel] = useState(null);
+  const [cortadorExp,setCortadorExp] = useState(null);
+  const [diaSeleccionado,setDiaSeleccionado] = useState(null);
   const [isMobile,setIsMobile]   = useState(window.innerWidth < 768);
   const [eventos,setEventos]     = useState([]);
   const [cortadores,setCortadores] = useState([]);
@@ -364,48 +559,53 @@ function App() {
                     ⚠️ Sin tablero: {cortadores.filter(c=>!c.tieneTablero).map(c=>c.nombre).join(", ")}
                   </div>
                 )}
-                <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(2,1fr)":"repeat(auto-fill,minmax(180px,1fr))",gap:10}}>
-                  {cortadores.map((c,i)=>{
-                    const col=c.color||colorCortador(c.nombre);
-                    return (
-                      <div key={i} style={{background:"#1A1008",border:"1px solid #3A2810",borderRadius:12,padding:"14px 12px",borderTop:`3px solid ${col}`}}>
-                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-                          <div>
-                            <div style={{fontFamily:"'Playfair Display',serif",fontSize:15,fontWeight:700,color:"#F5ECD8"}}>{c.nombre}</div>
-                            <div style={{fontSize:10,color:c.tieneTablero?"#27AE60":"#E74C3C",marginTop:3}}>{c.tieneTablero?"● Trello":"○ Sin tablero"}</div>
-                          </div>
-                          <div style={{width:32,height:32,borderRadius:"50%",background:col+"22",border:`2px solid ${col}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:col}}>
-                            {c.nombre[0]}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(2,1fr)":"repeat(auto-fill,minmax(180px,1fr))",gap:10,alignItems:"start"}}>
+                  {cortadores.map((c,i)=>(
+                    <CortadorCard
+                      key={i}
+                      cortador={c}
+                      eventos={eventos}
+                      expandido={cortadorExp === c.nombre}
+                      onToggle={() => setCortadorExp(cortadorExp === c.nombre ? null : c.nombre)}
+                      onClickEvento={ev => setEventoSel(ev)}
+                    />
+                  ))}
                 </div>
               </div>
             )}
 
             {tab==="calendario"&&(
               <div className="slide-up">
-                <CalMini eventos={eventos}/>
-                <div style={{marginTop:16}}>
-                  <h3 style={{fontFamily:"'Playfair Display',serif",fontSize:17,color:"#F5ECD8",marginBottom:12}}>Próximos 30 días</h3>
-                  <div style={{background:"#110C06",border:"1px solid #2A1A0A",borderRadius:14,overflow:"hidden"}}>
-                    {eventos.filter(e=>e.fecha>=HOY&&(e.fecha-HOY)<30*86400000).sort((a,b)=>a.fecha-b.fecha).map((ev,i)=>(
-                      <div key={i} style={{display:"flex",gap:12,alignItems:"center",padding:"13px 16px",borderBottom:"1px solid #1A1008"}}>
-                        <div style={{width:42,textAlign:"center",flexShrink:0,background:"#1A1008",borderRadius:8,padding:"6px 4px"}}>
-                          <div style={{fontSize:17,fontWeight:900,color:"#C0392B",fontFamily:"'Playfair Display',serif",lineHeight:1}}>{ev.fecha.getDate()}</div>
-                          <div style={{fontSize:8,color:"#8A7060",textTransform:"uppercase",letterSpacing:1}}>{["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"][ev.fecha.getMonth()]}</div>
+                <CalMini
+                  eventos={eventos}
+                  diaSeleccionado={diaSeleccionado}
+                  setDiaSeleccionado={setDiaSeleccionado}
+                />
+                <EventosDelDia
+                  diaSeleccionado={diaSeleccionado}
+                  eventos={eventos}
+                  onClickEvento={ev => setEventoSel(ev)}
+                />
+                {!diaSeleccionado && (
+                  <div style={{marginTop:16}}>
+                    <h3 style={{fontFamily:"'Playfair Display',serif",fontSize:17,color:"#F5ECD8",marginBottom:12}}>Próximos 30 días</h3>
+                    <div style={{background:"#110C06",border:"1px solid #2A1A0A",borderRadius:14,overflow:"hidden"}}>
+                      {eventos.filter(e=>e.fecha>=HOY&&(e.fecha-HOY)<30*86400000).sort((a,b)=>a.fecha-b.fecha).map((ev,i)=>(
+                        <div key={i} onClick={() => setEventoSel(ev)} style={{display:"flex",gap:12,alignItems:"center",padding:"13px 16px",borderBottom:"1px solid #1A1008",cursor:"pointer"}}>
+                          <div style={{width:42,textAlign:"center",flexShrink:0,background:"#1A1008",borderRadius:8,padding:"6px 4px"}}>
+                            <div style={{fontSize:17,fontWeight:900,color:"#C0392B",fontFamily:"'Playfair Display',serif",lineHeight:1}}>{ev.fecha.getDate()}</div>
+                            <div style={{fontSize:8,color:"#8A7060",textTransform:"uppercase",letterSpacing:1}}>{["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"][ev.fecha.getMonth()]}</div>
+                          </div>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:13,fontWeight:500,color:"#F5ECD8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ev.cliente}</div>
+                            <div style={{fontSize:10,color:"#8A7060",marginTop:1}}>{ev.turno} · {ev.tipo}</div>
+                          </div>
+                          <CortadorPill nombre={ev.cortador} small/>
                         </div>
-                        <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontSize:13,fontWeight:500,color:"#F5ECD8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ev.cliente}</div>
-                          <div style={{fontSize:10,color:"#8A7060",marginTop:1}}>{ev.turno} · {ev.tipo}</div>
-                        </div>
-                        <CortadorPill nombre={ev.cortador} small/>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             )}
           </React.Fragment>
