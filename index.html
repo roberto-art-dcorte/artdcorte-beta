@@ -431,5 +431,16 @@ function App() {
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(<App/>);
 </script>
+
+  <script>
+    // Registrar service worker (necesario para que Chrome reconozca la app como PWA instalable)
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./service-worker.js')
+          .then(reg => console.log('SW registered:', reg.scope))
+          .catch(err => console.warn('SW registration failed:', err));
+      });
+    }
+  </script>
 </body>
 </html>
