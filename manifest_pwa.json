@@ -1,0 +1,25 @@
+{
+  "name": "Art D'Corte — Gestión de Eventos",
+  "short_name": "Art D'Corte",
+  "description": "Gestión de eventos y cortadores de jamón ibérico",
+  "start_url": "/artdcorte-beta/index_pwa.html",
+  "scope": "/artdcorte-beta/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0e0e0e",
+  "theme_color": "#0e0e0e",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
