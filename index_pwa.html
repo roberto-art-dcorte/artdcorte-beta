@@ -499,7 +499,7 @@ function ListaEventos({ eventos, onEventoClick, loading }) {
 }
 
 // ─── APP PRINCIPAL ────────────────────────────────────────────────────────────
-export default function ArtDCorteApp() {
+function ArtDCorteApp() {
   const [data, setData]           = useState({ eventos:[], cortadores:[], stats:null });
   const [loading, setLoading]     = useState(true);
   const [loadError, setLoadError] = useState("");
