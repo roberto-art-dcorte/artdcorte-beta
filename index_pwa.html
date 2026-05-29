@@ -161,7 +161,7 @@ function PanelRapido({ev,campo,cortadores,onClose,onSaved}) {
   </div>;
 }
 
-function FormEvento({ev,cortadores,onBack,onSaved,onDeleted,isNew=false,onCreate}) {
+function FormEvento({ev,cortadores,clientes=[],onBack,onSaved,onDeleted,isNew=false,onCreate}) {
   const def = ev || {fecha:"",turno:"Mediodía",cliente:"",tipo:"Boda",cortador:"",jamones:1,estado:"Pendiente",obs:""};
   const [form,setForm]=useState({...def});
   const [dirty,setDirty]=useState(isNew);
@@ -232,10 +232,10 @@ function FormEvento({ev,cortadores,onBack,onSaved,onDeleted,isNew=false,onCreate
             onBlur={e=>e.target.style.borderColor="#333"}
           />
           <datalist id="lista-clientes">
-            {cortadores && cortadores.__clientes && cortadores.__clientes.map((c,i)=><option key={i} value={c}/>)}
+            {clientes.map((c,i)=><option key={i} value={c}/>)}
           </datalist>
-          {form.cliente && cortadores && cortadores.__clientes &&
-           !cortadores.__clientes.some(c=>c.toLowerCase()===form.cliente.toLowerCase()) &&
+          {form.cliente && clientes.length > 0 &&
+           !clientes.some(c=>c.toLowerCase()===form.cliente.toLowerCase()) &&
            form.cliente.trim().length > 1 && (
             <div
               onClick={()=>set("nuevoCliente",true)}
@@ -551,8 +551,8 @@ function ArtDCorteApp() {
     </div>}
 
     <div style={{flex:1,overflowY:"auto"}}>
-      {vista==="editar"&&eventoActivo&&<FormEvento ev={eventoActivo} cortadores={{...data.cortadores,__clientes:data.clientes||[]}} onBack={()=>setVista("list")} onSaved={handleSaved} onDeleted={handleDeleted}/>}
-      {vista==="nuevo"&&<FormEvento isNew cortadores={{...data.cortadores,__clientes:data.clientes||[]}} onBack={()=>setVista("list")} onCreate={handleCreated}/>}
+      {vista==="editar"&&eventoActivo&&<FormEvento ev={eventoActivo} cortadores={data.cortadores} clientes={data.clientes||[]} onBack={()=>setVista("list")} onSaved={handleSaved} onDeleted={handleDeleted}/>}
+      {vista==="nuevo"&&<FormEvento isNew cortadores={data.cortadores} clientes={data.clientes||[]} onBack={()=>setVista("list")} onCreate={handleCreated}/>}
       {vista==="list"&&tab==="resumen"&&<TabResumen eventos={data.eventos} stats={data.stats} onVerTodos={()=>setTab("eventos")} onEventoClick={handleEventoClick} onQuickEdit={handleQuickEdit} loading={loading}/>}
       {vista==="list"&&tab==="eventos"&&<TabEventos eventos={data.eventos} onEventoClick={handleEventoClick} onQuickEdit={handleQuickEdit} loading={loading}/>}
       {vista==="list"&&tab==="equipo"&&<TabEquipo cortadores={data.cortadores} eventos={data.eventos} onEventoClick={handleEventoClick} onQuickEdit={handleQuickEdit} loading={loading}/>}
