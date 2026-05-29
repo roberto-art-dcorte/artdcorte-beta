@@ -176,7 +176,7 @@ function FormEvento({ev,cortadores,clientes=[],onBack,onSaved,onDeleted,isNew=fa
       if(!form.cliente.trim()){setErr("El cliente es obligatorio");return;}
       setSaving(true); setErr("");
       try {
-        const res=await apiPost({accion:"crear",datos:{fecha:form.fecha,turno:form.turno,cliente:form.cliente,tipo:form.tipo,cortadores:form.cortador?[form.cortador]:[],jamones:form.jamones,estado:form.estado,descripcion:form.obs||""}});
+        const res=await apiPost({accion:"crear",datos:{fecha:form.fecha,turno:form.turno,cliente:form.cliente,tipo:form.tipo,cortadores:form.cortador?[form.cortador]:[],jamones:form.jamones,estado:form.estado,descripcion:form.obs||"",nuevoCliente:form.nuevoCliente||false}});
         if(res.ok) onCreate(res); else setErr(res.msg||"Error");
       } catch(e){setErr("Error de conexión");}
       setSaving(false);
