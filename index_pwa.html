@@ -234,9 +234,9 @@ function FormEvento({ev,cortadores,clientes=[],onBack,onSaved,onDeleted,isNew=fa
           <datalist id="lista-clientes">
             {clientes.map((c,i)=><option key={i} value={c}/>)}
           </datalist>
-          {form.cliente && clientes.length > 0 &&
-           !clientes.some(c=>c.toLowerCase()===form.cliente.toLowerCase()) &&
-           form.cliente.trim().length > 1 && (
+          {form.cliente && clientes.length > 0 && !form.nuevoCliente &&
+           !clientes.some(c=>c.toLowerCase()===form.cliente.toLowerCase().trim()) &&
+           form.cliente.trim().length > 2 && (
             <div
               onClick={()=>set("nuevoCliente",true)}
               style={{marginTop:6,background:"#1a3a1a",border:"1px solid #4ade8044",borderRadius:8,padding:"8px 12px",cursor:"pointer",fontSize:12,color:"#4ade80",display:"flex",alignItems:"center",gap:6}}
@@ -276,7 +276,7 @@ function FormEvento({ev,cortadores,clientes=[],onBack,onSaved,onDeleted,isNew=fa
         </div>}
       </div>
     </div>
-    <div style={{padding:"10px 16px",borderTop:"1px solid #1e1e1e",flexShrink:0,background:"#0e0e0e"}}>
+    <div style={{padding:"10px 16px 10px",borderTop:"1px solid #1e1e1e",flexShrink:0,background:"#0e0e0e",position:"sticky",bottom:0,zIndex:10}}>
       <button onClick={guardar} disabled={!btnActive} style={{width:"100%",background:btnActive?"linear-gradient(135deg,#c9a96e,#a07840)":"#2a2a2a",border:"none",borderRadius:11,padding:"13px",color:btnActive?"#1a0f00":"#555",fontWeight:700,fontSize:14,cursor:btnActive?"pointer":"default",fontFamily:"inherit"}}>
         {btnLabel}
       </button>
