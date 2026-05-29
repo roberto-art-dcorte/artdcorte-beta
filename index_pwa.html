@@ -46,7 +46,8 @@ async function apiGet() {
   return r.json();
 }
 async function apiPost(payload) {
-  const r = await fetch(WEB_APP_URL, {method:"POST",headers:{"Content-Type":"text/plain"},body:JSON.stringify(payload)});
+  const params = encodeURIComponent(JSON.stringify(payload));
+  const r = await fetch(WEB_APP_URL + "?payload=" + params);
   if (!r.ok) throw new Error("HTTP "+r.status);
   return r.json();
 }
@@ -479,19 +480,23 @@ function ArtDCorteApp() {
       select option { background:#1e1e1e; }
       ::-webkit-scrollbar { width:0; }
       @media (orientation:landscape) {
-        .pwa-header { padding-top:6px!important; padding-bottom:0!important; }
-        .pwa-header img { width:32px!important; height:32px!important; }
-        .pwa-titulo { font-size:16px!important; }
+        .pwa-header { padding-top:4px!important; padding-bottom:0!important; }
+        .pwa-header-img { width:28px!important; height:28px!important; }
+        .pwa-titulo { font-size:14px!important; }
+        .pwa-subtitulo { display:none!important; }
+        .pwa-tabs { margin-bottom:6px!important; }
+        .pwa-tabs button { min-height:26px!important; flex-direction:row!important; gap:4px!important; padding:3px 2px!important; }
+        .pwa-tabs button span:last-child { font-size:10px!important; }
       }
     `}</style>
 
     {vista==="list"&&<div className="pwa-header" style={{padding:"12px 16px 0",flexShrink:0}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <img src={LOGO_B64} alt="Art D'Corte" style={{width:44,height:44,borderRadius:9}}/>
+          <img src={LOGO_B64} alt="Art D'Corte" className="pwa-header-img" style={{width:44,height:44,borderRadius:9}}/>
           <div>
             <div className="pwa-titulo" style={{fontFamily:"'Playfair Display',serif",fontSize:20,fontWeight:700,color:"#f0e6d0",letterSpacing:"-0.02em",lineHeight:1.1}}>Art D'Corte</div>
-            <div style={{color:"#c9a96e",fontSize:9,letterSpacing:"0.14em",marginTop:1}}>GESTIÓN DE EVENTOS</div>
+            <div className="pwa-subtitulo" style={{color:"#c9a96e",fontSize:9,letterSpacing:"0.14em",marginTop:1}}>GESTIÓN DE EVENTOS</div>
           </div>
         </div>
         <div style={{display:"flex",gap:6,alignItems:"center"}}>
@@ -503,7 +508,7 @@ function ArtDCorteApp() {
           </button>
         </div>
       </div>
-      <div style={{display:"flex",gap:0,background:"#141414",borderRadius:9,padding:3,marginBottom:12}}>
+      <div className="pwa-tabs" style={{display:"flex",gap:0,background:"#141414",borderRadius:9,padding:3,marginBottom:12}}>
         {TABS.map(t=><button key={t.id} onClick={()=>setTab(t.id)} style={{flex:1,background:tab===t.id?"#1e1e1e":"none",border:"none",borderRadius:7,padding:"5px 2px",color:tab===t.id?"#f0e6d0":"#555",cursor:"pointer",fontFamily:"inherit",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1,minHeight:36}}>
           <span style={{fontSize:13}}>{t.ic}</span>
           <span style={{fontSize:9,letterSpacing:"0.02em"}}>{t.l}</span>
