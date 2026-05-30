@@ -259,7 +259,7 @@ function FormEvento({ev,cortadores,clientes=[],onBack,onSaved,onDeleted,isNew=fa
             {cortadores.map(c=><option key={c.nombre} value={c.nombre}>{c.nombre}</option>)}
           </select>
         </div>
-        <div><label style={lbl}>Jamones</label><input type="number" min="1" max="20" value={form.jamones||1} onChange={e=>set("jamones",Number(e.target.value))} style={{...inp,width:90}} onFocus={e=>e.target.style.borderColor="#c9a96e"} onBlur={e=>e.target.style.borderColor="#333"}/></div>
+        <div><label style={lbl}>Jamones</label><input type="number" min="1" max="20" value={form.jamones??""} onChange={e=>set("jamones",e.target.value===""?"":Number(e.target.value))} style={{...inp,width:90}} onFocus={e=>{e.target.style.borderColor="#c9a96e";e.target.select();}} onBlur={e=>{e.target.style.borderColor="#333";const n=Number(e.target.value);set("jamones",e.target.value===""||isNaN(n)||n<1?1:n>20?20:n);}}/></div>
         <div><label style={lbl}>Notas</label><textarea value={form.obs||""} onChange={e=>set("obs",e.target.value)} placeholder="Indicaciones, contacto, observaciones…" rows={3} style={{...inp,resize:"vertical",lineHeight:1.5}} onFocus={e=>e.target.style.borderColor="#c9a96e"} onBlur={e=>e.target.style.borderColor="#333"}/></div>
         {err&&<div style={{color:"#f87171",fontSize:12,background:"#1e0a0a",padding:"10px 12px",borderRadius:8}}>⚠️ {err}</div>}
         {!isNew&&<div style={{borderTop:"1px solid #1e1e1e",paddingTop:12}}>
