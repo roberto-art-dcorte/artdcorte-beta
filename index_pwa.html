@@ -41,7 +41,32 @@ const ESTADO_C = {
   Cancelado:   {bg:"#1e1e1e",text:"#6b7280",dot:"#6b7280"},
 };
 
+
 function getPinGuardado() { return localStorage.getItem("artdcorte_pin") || ""; }
+
+// --- Fase 1: caché de lectura offline ---
+function leerSnapshot() {
+  try {
+    const raw = localStorage.getItem("artdcorte_snapshot");
+    if (!raw) return null;
+    const ts = localStorage.getItem("artdcorte_snapshot_ts");
+    return { data: JSON.parse(raw), ts: ts ? Number(ts) : null };
+  } catch (e) { return null; }
+}
+function guardarSnapshot(data) {
+  try {
+    localStorage.setItem("artdcorte_snapshot", JSON.stringify(data));
+    localStorage.setItem("artdcorte_snapshot_ts", String(Date.now()));
+  } catch (e) {}
+}
+function fmtSnapshot(ts) {
+  try { return new Date(ts).toLocaleString("es-ES",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}); }
+  catch (e) { return ""; }
+}
+// Fase 1: NO hay cola ni sincronización diferida. Offline = solo lectura.
+// El mensaje debe dejar claro que el cambio NO se guardó.
+const MSG_OFFLINE_WRITE = "Sin conexión. Los cambios NO se han guardado; inténtalo de nuevo cuando recuperes señal.";
+
 async function apiGet() {
   const clave = getPinGuardado();
   const r = await fetch(WEB_APP_URL + "?clave=" + encodeURIComponent(clave));
@@ -51,13 +76,20 @@ async function apiGet() {
   return json;
 }
 async function apiPost(payload) {
+  if (!navigator.onLine) {
+    return { ok:false, offline:true, msg: MSG_OFFLINE_WRITE };
+  }
   const clave = getPinGuardado();
   const params = encodeURIComponent(JSON.stringify(payload));
-  const r = await fetch(WEB_APP_URL + "?clave=" + encodeURIComponent(clave) + "&payload=" + params);
-  if (!r.ok) throw new Error("HTTP "+r.status);
-  const json = await r.json();
-  if (json && json.motivo === "clave_invalida") { window.dispatchEvent(new Event("pin_invalido")); return json; }
-  return json;
+  try {
+    const r = await fetch(WEB_APP_URL + "?clave=" + encodeURIComponent(clave) + "&payload=" + params);
+    if (!r.ok) throw new Error("HTTP "+r.status);
+    const json = await r.json();
+    if (json && json.motivo === "clave_invalida") { window.dispatchEvent(new Event("pin_invalido")); return json; }
+    return json;
+  } catch (e) {
+    return { ok:false, offline:true, msg: MSG_OFFLINE_WRITE };
+  }
 }
 async function verificarPin(pin) {
   try {
@@ -65,9 +97,8 @@ async function verificarPin(pin) {
     if (!r.ok) return false;
     const json = await r.json();
     return !(json && json.motivo === "clave_invalida");
-  } catch(e) { return false; }
+  } catch (e) { return false; }
 }
-
 const hoy = new Date(); hoy.setHours(0,0,0,0);
 function parseDate(s) { if(!s) return null; const [y,m,d]=s.split("-").map(Number); return new Date(y,m-1,d); }
 function fmtCorto(s) { const d=parseDate(s); if(!d) return ""; return d.toLocaleDateString("es-ES",{weekday:"short",day:"numeric",month:"short"}); }
@@ -274,7 +305,7 @@ function FormEvento({ev,cortadores,clientes=[],onBack,onSaved,onDeleted,isNew=fa
             {cortadores.map(c=><option key={c.nombre} value={c.nombre}>{c.nombre}</option>)}
           </select>
         </div>
-        <div><label style={lbl}>Jamones</label><input type="number" min="1" max="20" value={form.jamones??""} onChange={e=>set("jamones",e.target.value===""?"":Number(e.target.value))} style={{...inp,width:90}} onFocus={e=>{e.target.style.borderColor="#c9a96e";e.target.select();}} onBlur={e=>{e.target.style.borderColor="#333";const n=Number(e.target.value);set("jamones",e.target.value===""||isNaN(n)||n<1?1:n>20?20:n);}}/></div>
+        <div><label style={lbl}>Jamones</label><input type="number" min="1" max="20" value={form.jamones||1} onChange={e=>set("jamones",Number(e.target.value))} style={{...inp,width:90}} onFocus={e=>e.target.style.borderColor="#c9a96e"} onBlur={e=>e.target.style.borderColor="#333"}/></div>
         <div><label style={lbl}>Notas</label><textarea value={form.obs||""} onChange={e=>set("obs",e.target.value)} placeholder="Indicaciones, contacto, observaciones…" rows={3} style={{...inp,resize:"vertical",lineHeight:1.5}} onFocus={e=>e.target.style.borderColor="#c9a96e"} onBlur={e=>e.target.style.borderColor="#333"}/></div>
         {err&&<div style={{color:"#f87171",fontSize:12,background:"#1e0a0a",padding:"10px 12px",borderRadius:8}}>⚠️ {err}</div>}
         {!isNew&&<div style={{borderTop:"1px solid #1e1e1e",paddingTop:12}}>
@@ -476,6 +507,7 @@ function PantallaPIN({onUnlock}) {
   const [err,setErr]=useState("");
   async function intentar() {
     if(!pin||pin.length<4){setErr("Introduce el PIN");return;}
+    if(!navigator.onLine){ setErr("Sin conexión. Conéctate para verificar el PIN la primera vez en este dispositivo."); return; }
     setVerif(true); setErr("");
     const ok=await verificarPin(pin);
     if(ok){ localStorage.setItem("artdcorte_pin",pin); onUnlock(); }
@@ -507,6 +539,8 @@ function ArtDCorteApp() {
   const [data,setData]=useState({eventos:[],cortadores:[],clientes:[],stats:null});
   const [loading,setLoading]=useState(true);
   const [loadErr,setLoadErr]=useState("");
+  const [offline,setOffline]=useState(false);
+  const [snapshotTs,setSnapshotTs]=useState(null);
   const [tab,setTab]=useState("resumen");
   const [vista,setVista]=useState("list");
   const [eventoActivo,setEventoActivo]=useState(null);
@@ -520,19 +554,39 @@ function ArtDCorteApp() {
     try {
       const res=await apiGet();
       if(res.error) throw new Error(res.mensaje);
-      setData({eventos:res.eventos||[],cortadores:res.cortadores||[],clientes:res.clientes||[],stats:res.stats||null});
-    } catch(e) { setLoadErr("No se pudo conectar: "+e.message); }
+      const payload={eventos:res.eventos||[],cortadores:res.cortadores||[],clientes:res.clientes||[],stats:res.stats||null};
+      setData(payload);
+      setOffline(false);
+      guardarSnapshot(payload);           // Fase 1: guardamos el último estado bueno
+    } catch(e) {
+      // Fase 1: sin red → intentamos pintar el último snapshot cacheado
+      const snap=leerSnapshot();
+      if(snap){
+        setData(snap.data);
+        setOffline(true);
+        setSnapshotTs(snap.ts);
+        setLoadErr("");
+      } else {
+        setLoadErr("No se pudo conectar: "+e.message);
+      }
+    }
     setLoading(false);
   },[]);
 
   useEffect(()=>{
     const pinGuardado=getPinGuardado();
     if(pinGuardado){
-      verificarPin(pinGuardado).then(ok=>{
-        if(ok) setDesbloqueado(true);
-        else localStorage.removeItem("artdcorte_pin");
-        setComprobandoPin(false);
-      });
+      if(!navigator.onLine){
+        // Fase 1: sin conexión no se puede verificar el PIN contra el backend.
+        // Si ya hay PIN guardado en este dispositivo, confiamos en él y entramos en modo offline.
+        setDesbloqueado(true); setComprobandoPin(false);
+      } else {
+        verificarPin(pinGuardado).then(ok=>{
+          if(ok) setDesbloqueado(true);
+          else localStorage.removeItem("artdcorte_pin");
+          setComprobandoPin(false);
+        });
+      }
     } else { setComprobandoPin(false); }
     const handler=()=>{ localStorage.removeItem("artdcorte_pin"); setDesbloqueado(false); };
     window.addEventListener("pin_invalido",handler);
@@ -543,8 +597,10 @@ function ArtDCorteApp() {
     if(!desbloqueado) return;
     cargarDatos();
     const onVis=()=>{if(document.visibilityState==="visible")cargarDatos();};
+    const onOnline=()=>cargarDatos();   // Fase 1: al recuperar red, refrescamos lectura
     document.addEventListener("visibilitychange",onVis);
-    return ()=>document.removeEventListener("visibilitychange",onVis);
+    window.addEventListener("online",onOnline);
+    return ()=>{document.removeEventListener("visibilitychange",onVis);window.removeEventListener("online",onOnline);};
   },[cargarDatos,desbloqueado]);
 
   function handleEventoClick(ev) { setEventoActivo(ev); setVista("editar"); }
@@ -614,6 +670,11 @@ function ArtDCorteApp() {
 
     {loadErr&&<div style={{margin:"14px 16px 0",background:"#1e0a0a",border:"1px solid #f87171",borderRadius:9,padding:"10px 12px",color:"#f87171",fontSize:12}}>
       ⚠️ {loadErr} <button onClick={cargarDatos} style={{marginLeft:10,background:"none",border:"1px solid #f87171",color:"#f87171",borderRadius:6,padding:"3px 8px",cursor:"pointer",fontSize:11,fontFamily:"inherit"}}>Reintentar</button>
+    </div>}
+
+    {offline&&<div style={{margin:"10px 16px 0",background:"#1e1408",border:"1px solid #c9a96e55",borderRadius:9,padding:"8px 12px",color:"#c9a96e",fontSize:11,display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+      <span style={{width:7,height:7,borderRadius:"50%",background:"#c9a96e",flexShrink:0}}/>
+      <span>Sin conexión · {snapshotTs?("datos del "+fmtSnapshot(snapshotTs)):"datos guardados"} · solo lectura</span>
     </div>}
 
     <div style={{flex:1,overflowY:"auto"}}>
