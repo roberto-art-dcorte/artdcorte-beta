@@ -213,6 +213,64 @@ function PanelRapido({ev,campo,cortadores,onClose,onSaved}) {
   </div>;
 }
 
+function UbicCombo({ubicaciones,value,url,onChange}) {
+  const [query,setQuery]=React.useState(value||"");
+  const [open,setOpen]=React.useState(false);
+  const [idx,setIdx]=React.useState(-1);
+  const ref=React.useRef();
+
+  // Sincronizar si el padre limpia el valor
+  React.useEffect(()=>{setQuery(value||"");},[value]);
+
+  function norm(s){return String(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"");}
+  const matches=query.trim().length>0
+    ? ubicaciones.filter(u=>norm(u.nombre).includes(norm(query)))
+    : ubicaciones;
+  const exacta=ubicaciones.some(u=>norm(u.nombre)===norm(query.trim()));
+  const mostrarCrear=query.trim().length>2&&!exacta;
+
+  function seleccionar(u){
+    setQuery(u.nombre);setOpen(false);setIdx(-1);
+    onChange(u.nombre,u.url||"",false);
+  }
+  function handleKey(e){
+    const total=matches.length+(mostrarCrear?1:0);
+    if(e.key==="ArrowDown"){e.preventDefault();setIdx(i=>Math.min(i+1,total-1));}
+    else if(e.key==="ArrowUp"){e.preventDefault();setIdx(i=>Math.max(i-1,-1));}
+    else if(e.key==="Enter"){
+      e.preventDefault();
+      if(idx>=0&&idx<matches.length) seleccionar(matches[idx]);
+      else if(idx===matches.length&&mostrarCrear) onChange(query.trim(),"",true);
+      setOpen(false);
+    }
+    else if(e.key==="Escape") setOpen(false);
+  }
+
+  return <div style={{position:"relative"}} ref={ref}>
+    <input type="text" value={query}
+      onChange={e=>{setQuery(e.target.value);setOpen(true);setIdx(-1);onChange(e.target.value,"",false);}}
+      onFocus={()=>setOpen(true)}
+      onBlur={()=>setTimeout(()=>setOpen(false),150)}
+      onKeyDown={handleKey}
+      placeholder="Nombre del lugar…"
+      style={inp}
+      onFocus={e=>{e.target.style.borderColor="#c9a96e";setOpen(true);}}
+      onBlur={e=>{e.target.style.borderColor="#333";setTimeout(()=>setOpen(false),150);}}
+      autoComplete="off"
+    />
+    {open&&(matches.length>0||mostrarCrear)&&<div style={{position:"absolute",top:"100%",left:0,right:0,background:"#1e1e1e",border:"1px solid #333",borderRadius:"0 0 8px 8px",zIndex:200,maxHeight:200,overflowY:"auto",boxShadow:"0 4px 16px rgba(0,0,0,0.5)"}}>
+      {matches.map((u,i)=><div key={i} onMouseDown={()=>seleccionar(u)}
+        style={{padding:"9px 12px",fontSize:13,cursor:"pointer",color:idx===i?"#c9a96e":"#f0e6d0",background:idx===i?"#2a2a1a":"transparent",borderBottom:"1px solid #2a2a2a"}}>
+        📍 {u.nombre}
+      </div>)}
+      {mostrarCrear&&<div onMouseDown={()=>{onChange(query.trim(),"",true);setOpen(false);}}
+        style={{padding:"9px 12px",fontSize:13,cursor:"pointer",color:idx===matches.length?"#60a5fa":"#60a5fa99",background:idx===matches.length?"#0f2a3a":"transparent",borderTop:matches.length?"1px solid #2a2a2a":"none",fontWeight:600}}>
+        📍 Nueva ubicación: <strong>{query.trim()}</strong>
+      </div>}
+    </div>}
+  </div>;
+}
+
 function FormEvento({ev,cortadores,clientes=[],ubicaciones=[],onBack,onSaved,onDeleted,isNew=false,onCreate}) {
   const def = ev || {fecha:"",turno:"Mediodía",cliente:"",tipo:"Boda",cortador:"",jamones:1,estado:"Pendiente",obs:"",ubicNombre:"",ubicUrl:"",albaran:""};
   // jamonesCliente viene ya como booleano desde el Sheet (col R)
@@ -329,25 +387,9 @@ function FormEvento({ev,cortadores,clientes=[],ubicaciones=[],onBack,onSaved,onD
         </div>
         <div>
           <label style={lbl}>Ubicación</label>
-          <input
-            type="text"
-            list="lista-ubicaciones"
-            value={form.ubicNombre||""}
-            onChange={e=>{set("ubicNombre",e.target.value);set("nuevoUbicacion",false);}}
-            placeholder="Nombre del lugar…"
-            style={inp}
-            onFocus={e=>e.target.style.borderColor="#c9a96e"}
-            onBlur={e=>{
-              e.target.style.borderColor="#333";
-              const val=e.target.value.trim();
-              if(!val){set("ubicUrl","");return;}
-              const match=ubicaciones.find(u=>u.nombre.toLowerCase()===val.toLowerCase());
-              if(match){set("ubicNombre",match.nombre);set("ubicUrl",match.url||"");}
-            }}
+          <UbicCombo ubicaciones={ubicaciones} value={form.ubicNombre||""} url={form.ubicUrl||""}
+            onChange={(nombre,url,esNueva)=>{set("ubicNombre",nombre);set("ubicUrl",url||"");set("nuevoUbicacion",esNueva);}}
           />
-          <datalist id="lista-ubicaciones">
-            {ubicaciones.map((u,i)=><option key={i} value={u.nombre}/>)}
-          </datalist>
           {form.ubicNombre && !form.nuevoUbicacion &&
            !ubicaciones.some(u=>u.nombre.toLowerCase()===form.ubicNombre.toLowerCase().trim()) &&
            form.ubicNombre.trim().length > 2 && (
@@ -632,7 +674,7 @@ function ArtDCorteApp() {
     try {
       const res=await apiGet();
       if(res.error) throw new Error(res.mensaje);
-      const payload={eventos:res.eventos||[],cortadores:res.cortadores||[],clientes:res.clientes||[],stats:res.stats||null};
+      const payload={eventos:res.eventos||[],cortadores:res.cortadores||[],clientes:res.clientes||[],ubicaciones:res.ubicaciones||[],stats:res.stats||null};
       setData(payload);
       setOffline(false);
       guardarSnapshot(payload);           // Fase 1: guardamos el último estado bueno
