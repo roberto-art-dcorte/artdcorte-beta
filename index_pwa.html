@@ -331,7 +331,7 @@ function FormEvento({ev,cortadores,clientes=[],ubicaciones=[],onBack,onSaved,onD
           <datalist id="lista-ubicaciones">
             {ubicaciones.map((u,i)=><option key={i} value={u.nombre}/>)}
           </datalist>
-          {form.ubicNombre && ubicaciones.length > 0 && !form.nuevoUbicacion &&
+          {form.ubicNombre && !form.nuevoUbicacion &&
            !ubicaciones.some(u=>u.nombre.toLowerCase()===form.ubicNombre.toLowerCase().trim()) &&
            form.ubicNombre.trim().length > 2 && (
             <div
