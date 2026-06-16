@@ -228,14 +228,14 @@ function FormEvento({ev,cortadores,clientes=[],ubicaciones=[],onBack,onSaved,onD
       if(!form.cliente.trim()){setErr("El cliente es obligatorio");return;}
       setSaving(true); setErr("");
       try {
-        const res=await apiPost({accion:"crear",datos:{fecha:form.fecha,turno:form.turno,cliente:form.cliente,tipo:form.tipo,cortadores:form.cortador?[form.cortador]:[],jamones:form.jamones,estado:form.estado,descripcion:form.obs||"",nuevoCliente:form.nuevoCliente||false,ubicacion:form.nuevoUbicacion?form.ubicNombreNuevo:form.ubicNombre,ubicUrl:form.nuevoUbicacion?form.ubicUrlNueva:form.ubicUrl,nuevoUbicacion:form.nuevoUbicacion||false,albaran:form.albaran||""}});
+        const res=await apiPost({accion:"crear",datos:{fecha:form.fecha,turno:form.turno,cliente:form.cliente,tipo:form.tipo,cortadores:form.cortador?[form.cortador]:[],jamones:form.jamones,estado:form.estado,descripcion:form.obs||"",nuevoCliente:form.nuevoCliente||false,ubicacion:form.nuevoUbicacion?form.ubicNombreNuevo:form.ubicNombre,ubicUrl:form.nuevoUbicacion?form.ubicUrlNueva:form.ubicUrl,nuevoUbicacion:form.nuevoUbicacion||false,albaran:form.albaran||"",jamonesCliente:form.jamonesCliente||false}});
         if(res.ok) onCreate(res); else setErr(res.msg||"Error");
       } catch(e){setErr("Error de conexión");}
       setSaving(false);
     } else {
       setSaving(true); setErr("");
       try {
-        const res=await apiPost({accion:"editar",num:ev.num,datos:{fecha:form.fecha,turno:form.turno,cliente:form.cliente,tipo:form.tipo,cortador:form.cortador,jamones:form.jamones,estado:form.estado,descripcion:form.obs,ubicacion:form.ubicNombre,ubicUrl:form.ubicUrl,albaran:form.albaran}});
+        const res=await apiPost({accion:"editar",num:ev.num,datos:{fecha:form.fecha,turno:form.turno,cliente:form.cliente,tipo:form.tipo,cortador:form.cortador,jamones:form.jamones,estado:form.estado,descripcion:form.obs,ubicacion:form.ubicNombre,ubicUrl:form.ubicUrl,albaran:form.albaran,jamonesCliente:form.jamonesCliente||false}});
         if(res.ok){setDirty(false);onSaved(form);} else setErr(res.msg||"Error");
       } catch(e){setErr("Error de conexión");}
       setSaving(false);
@@ -263,7 +263,10 @@ function FormEvento({ev,cortadores,clientes=[],ubicaciones=[],onBack,onSaved,onD
         <div style={{color:"#f0e6d0",fontFamily:"'Playfair Display',serif",fontSize:17,fontWeight:600}}>{titulo}</div>
         {subtitulo&&<div style={{color:"#888",fontSize:11}}>{subtitulo}</div>}
       </div>
-      {!isNew&&<Badge text={form.estado}/>}
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        {!isNew&&ev.ubicUrl&&<a href={ev.ubicUrl} target="_blank" rel="noopener" style={{background:"#0f2a3a",border:"1px solid #60a5fa44",borderRadius:8,padding:"5px 9px",color:"#60a5fa",fontSize:12,textDecoration:"none",display:"flex",alignItems:"center",gap:4,flexShrink:0}}>🗺 Maps</a>}
+        {!isNew&&<Badge text={form.estado}/>}
+      </div>
     </div>
     <div style={{flex:1,overflowY:"auto",padding:"16px"}}>
       <div style={{display:"grid",gap:13}}>
@@ -311,7 +314,18 @@ function FormEvento({ev,cortadores,clientes=[],ubicaciones=[],onBack,onSaved,onD
             {cortadores.map(c=><option key={c.nombre} value={c.nombre}>{c.nombre}</option>)}
           </select>
         </div>
-        <div><label style={lbl}>Jamones</label><input type="number" min="1" max="20" value={form.jamones||1} onChange={e=>set("jamones",Number(e.target.value))} style={{...inp,width:90}} onFocus={e=>e.target.style.borderColor="#c9a96e"} onBlur={e=>e.target.style.borderColor="#333"}/></div>
+        <div>
+          <label style={lbl}>Jamones</label>
+          <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+            <input type="number" min="1" max="20" value={form.jamones??1} onChange={e=>set("jamones",Number(e.target.value)||1)} style={{...inp,width:90}} onFocus={e=>{e.target.style.borderColor="#c9a96e";e.target.select();}} onBlur={e=>e.target.style.borderColor="#333"}/>
+            <label style={{display:"flex",alignItems:"center",gap:7,cursor:"pointer",userSelect:"none"}}>
+              <input type="checkbox" checked={!!form.jamonesCliente} onChange={e=>set("jamonesCliente",e.target.checked)}
+                style={{width:16,height:16,accentColor:"#c9a96e",cursor:"pointer",flexShrink:0}}/>
+              <span style={{color:form.jamonesCliente?"#c9a96e":"#666",fontSize:12,transition:"color 0.15s"}}>A cargo del cliente</span>
+            </label>
+          </div>
+          {form.jamonesCliente&&<div style={{marginTop:5,fontSize:11,color:"#c9a96e88"}}>Los jamones no se facturarán en el albarán</div>}
+        </div>
         <div>
           <label style={lbl}>Ubicación</label>
           <input
