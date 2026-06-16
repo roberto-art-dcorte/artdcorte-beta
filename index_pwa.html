@@ -119,6 +119,7 @@ function colorCortador(n) {
 
 const inp = {width:"100%",background:"#1e1e1e",border:"1px solid #333",borderRadius:10,padding:"10px 14px",color:"#f0e6d0",fontSize:14,outline:"none",boxSizing:"border-box",fontFamily:"inherit"};
 const lbl = {color:"#888",fontSize:11,letterSpacing:"0.08em",marginBottom:5,display:"block",textTransform:"uppercase"};
+const ALBARAN_ESTADOS = ["", "⬜ Pendiente", "✅ Albaraneado"];
 
 function Badge({text,color,small=false}) {
   const c=ESTADO_C[text]||{bg:(color||"#888")+"22",text:color||"#888",dot:color||"#888"};
@@ -161,6 +162,11 @@ function EventoCard({ev,onClick,onQuickEdit}) {
         {ev.jamones>0&&<><span style={{color:"#555",fontSize:11}}>·</span><span style={{color:"#aaa",fontSize:11,display:"inline-flex",alignItems:"center",gap:3}}><img src={JAMON_ICON} style={{width:13,height:13,objectFit:"contain"}}/>{ev.jamones}</span></>}
       </div>
       {dias>=0&&dias<=7&&<div style={{marginTop:5,color:dias<=1?"#f87171":dias<=3?"#fbbf24":"#888",fontSize:11,fontWeight:600}}>{dias===0?"⚡ HOY":dias===1?"⚡ MAÑANA":`En ${dias} días`}</div>}
+      <div style={{display:"flex",gap:8,alignItems:"center",marginTop:ev.ubicNombre||ev.albaran?5:0,flexWrap:"wrap"}}>
+        {ev.ubicNombre&&<a href={ev.ubicUrl||"#"} target="_blank" rel="noopener" onClick={e=>e.stopPropagation()} style={{color:"#60a5fa",fontSize:11,display:"inline-flex",alignItems:"center",gap:3,textDecoration:"none"}}>📍 {ev.ubicNombre}</a>}
+        {ev.albaran==="✅ Albaraneado"&&<span style={{background:"#14532d33",border:"1px solid #4ade8044",borderRadius:8,padding:"1px 7px",color:"#4ade80",fontSize:10,fontWeight:700}}>📋 Albaraneado</span>}
+        {ev.albaran==="⬜ Pendiente"&&<span style={{background:"#1e1e1e",border:"1px solid #444",borderRadius:8,padding:"1px 7px",color:"#888",fontSize:10}}>📋 Pendiente</span>}
+      </div>
     </div>
     <div style={{display:"flex",gap:6,marginTop:8,paddingTop:8,borderTop:"1px solid #1e1e1e"}}>
       <button onClick={e=>{e.stopPropagation();onQuickEdit(ev,"estado");}} style={{flex:1,background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:7,padding:"5px 0",color:"#aaa",cursor:"pointer",fontSize:11,fontFamily:"inherit"}}>Estado</button>
@@ -207,8 +213,8 @@ function PanelRapido({ev,campo,cortadores,onClose,onSaved}) {
   </div>;
 }
 
-function FormEvento({ev,cortadores,clientes=[],onBack,onSaved,onDeleted,isNew=false,onCreate}) {
-  const def = ev || {fecha:"",turno:"Mediodía",cliente:"",tipo:"Boda",cortador:"",jamones:1,estado:"Pendiente",obs:""};
+function FormEvento({ev,cortadores,clientes=[],ubicaciones=[],onBack,onSaved,onDeleted,isNew=false,onCreate}) {
+  const def = ev || {fecha:"",turno:"Mediodía",cliente:"",tipo:"Boda",cortador:"",jamones:1,estado:"Pendiente",obs:"",ubicNombre:"",ubicUrl:"",albaran:""};
   const [form,setForm]=useState({...def});
   const [dirty,setDirty]=useState(isNew);
   const [saving,setSaving]=useState(false);
@@ -222,14 +228,14 @@ function FormEvento({ev,cortadores,clientes=[],onBack,onSaved,onDeleted,isNew=fa
       if(!form.cliente.trim()){setErr("El cliente es obligatorio");return;}
       setSaving(true); setErr("");
       try {
-        const res=await apiPost({accion:"crear",datos:{fecha:form.fecha,turno:form.turno,cliente:form.cliente,tipo:form.tipo,cortadores:form.cortador?[form.cortador]:[],jamones:form.jamones,estado:form.estado,descripcion:form.obs||"",nuevoCliente:form.nuevoCliente||false}});
+        const res=await apiPost({accion:"crear",datos:{fecha:form.fecha,turno:form.turno,cliente:form.cliente,tipo:form.tipo,cortadores:form.cortador?[form.cortador]:[],jamones:form.jamones,estado:form.estado,descripcion:form.obs||"",nuevoCliente:form.nuevoCliente||false,ubicacion:form.nuevoUbicacion?form.ubicNombreNuevo:form.ubicNombre,ubicUrl:form.nuevoUbicacion?form.ubicUrlNueva:form.ubicUrl,nuevoUbicacion:form.nuevoUbicacion||false,albaran:form.albaran||""}});
         if(res.ok) onCreate(res); else setErr(res.msg||"Error");
       } catch(e){setErr("Error de conexión");}
       setSaving(false);
     } else {
       setSaving(true); setErr("");
       try {
-        const res=await apiPost({accion:"editar",num:ev.num,datos:{fecha:form.fecha,turno:form.turno,cliente:form.cliente,tipo:form.tipo,cortador:form.cortador,jamones:form.jamones,estado:form.estado,descripcion:form.obs}});
+        const res=await apiPost({accion:"editar",num:ev.num,datos:{fecha:form.fecha,turno:form.turno,cliente:form.cliente,tipo:form.tipo,cortador:form.cortador,jamones:form.jamones,estado:form.estado,descripcion:form.obs,ubicacion:form.ubicNombre,ubicUrl:form.ubicUrl,albaran:form.albaran}});
         if(res.ok){setDirty(false);onSaved(form);} else setErr(res.msg||"Error");
       } catch(e){setErr("Error de conexión");}
       setSaving(false);
@@ -306,6 +312,61 @@ function FormEvento({ev,cortadores,clientes=[],onBack,onSaved,onDeleted,isNew=fa
           </select>
         </div>
         <div><label style={lbl}>Jamones</label><input type="number" min="1" max="20" value={form.jamones||1} onChange={e=>set("jamones",Number(e.target.value))} style={{...inp,width:90}} onFocus={e=>e.target.style.borderColor="#c9a96e"} onBlur={e=>e.target.style.borderColor="#333"}/></div>
+        <div>
+          <label style={lbl}>Ubicación</label>
+          <input
+            type="text"
+            list="lista-ubicaciones"
+            value={form.ubicNombre||""}
+            onChange={e=>{set("ubicNombre",e.target.value);set("ubicUrl","");set("nuevoUbicacion",false);}}
+            placeholder="Nombre del lugar…"
+            style={inp}
+            onFocus={e=>e.target.style.borderColor="#c9a96e"}
+            onBlur={e=>{
+              e.target.style.borderColor="#333";
+              const match=ubicaciones.find(u=>u.nombre.toLowerCase()===e.target.value.toLowerCase().trim());
+              if(match){set("ubicNombre",match.nombre);set("ubicUrl",match.url||"");}
+            }}
+          />
+          <datalist id="lista-ubicaciones">
+            {ubicaciones.map((u,i)=><option key={i} value={u.nombre}/>)}
+          </datalist>
+          {form.ubicNombre && ubicaciones.length > 0 && !form.nuevoUbicacion &&
+           !ubicaciones.some(u=>u.nombre.toLowerCase()===form.ubicNombre.toLowerCase().trim()) &&
+           form.ubicNombre.trim().length > 2 && (
+            <div
+              onClick={()=>set("nuevoUbicacion",true)}
+              style={{marginTop:6,background:"#0f2a3a",border:"1px solid #60a5fa44",borderRadius:8,padding:"8px 12px",cursor:"pointer",fontSize:12,color:"#60a5fa",display:"flex",alignItems:"center",gap:6}}
+            >
+              <span style={{fontSize:14}}>📍</span>
+              Nueva ubicación: <strong>{form.ubicNombre}</strong>
+            </div>
+          )}
+          {form.nuevoUbicacion && (
+            <div style={{marginTop:8,display:"grid",gap:8}}>
+              <div>
+                <label style={{...lbl,color:"#60a5fa"}}>Nombre de la ubicación *</label>
+                <input type="text" value={form.ubicNombreNuevo||form.ubicNombre||""} onChange={e=>set("ubicNombreNuevo",e.target.value)} placeholder="Sala Mediterráneo…" style={inp} onFocus={e=>e.target.style.borderColor="#60a5fa"} onBlur={e=>e.target.style.borderColor="#333"}/>
+              </div>
+              <div>
+                <label style={{...lbl,color:"#60a5fa"}}>URL Google Maps</label>
+                <input type="url" value={form.ubicUrlNueva||""} onChange={e=>set("ubicUrlNueva",e.target.value)} placeholder="https://maps.google.com/…" style={inp} onFocus={e=>e.target.style.borderColor="#60a5fa"} onBlur={e=>e.target.style.borderColor="#333"}/>
+              </div>
+              <div style={{fontSize:11,color:"#60a5fa"}}>📍 Se añadirá a la hoja Ubicaciones</div>
+            </div>
+          )}
+          {form.ubicUrl && !form.nuevoUbicacion && (
+            <a href={form.ubicUrl} target="_blank" rel="noopener" style={{display:"inline-flex",alignItems:"center",gap:4,marginTop:5,color:"#60a5fa",fontSize:11,textDecoration:"none"}}>
+              🗺 Ver en Maps
+            </a>
+          )}
+        </div>
+        {!isNew&&<div>
+          <label style={lbl}>Albarán</label>
+          <select value={form.albaran||""} onChange={e=>set("albaran",e.target.value)} style={{...inp,appearance:"none",color:form.albaran==="✅ Albaraneado"?"#4ade80":form.albaran==="⬜ Pendiente"?"#f0e6d0":"#666"}}>
+            {ALBARAN_ESTADOS.map(s=><option key={s} value={s}>{s||"— Sin gestionar —"}</option>)}
+          </select>
+        </div>}
         <div><label style={lbl}>Notas</label><textarea value={form.obs||""} onChange={e=>set("obs",e.target.value)} placeholder="Indicaciones, contacto, observaciones…" rows={3} style={{...inp,resize:"vertical",lineHeight:1.5}} onFocus={e=>e.target.style.borderColor="#c9a96e"} onBlur={e=>e.target.style.borderColor="#333"}/></div>
         {err&&<div style={{color:"#f87171",fontSize:12,background:"#1e0a0a",padding:"10px 12px",borderRadius:8}}>⚠️ {err}</div>}
         {!isNew&&<div style={{borderTop:"1px solid #1e1e1e",paddingTop:12}}>
@@ -678,8 +739,8 @@ function ArtDCorteApp() {
     </div>}
 
     <div style={{flex:1,overflowY:"auto"}}>
-      {vista==="editar"&&eventoActivo&&<FormEvento ev={eventoActivo} cortadores={data.cortadores} clientes={data.clientes||[]} onBack={()=>setVista("list")} onSaved={handleSaved} onDeleted={handleDeleted}/>}
-      {vista==="nuevo"&&<FormEvento isNew cortadores={data.cortadores} clientes={data.clientes||[]} onBack={()=>setVista("list")} onCreate={handleCreated}/>}
+      {vista==="editar"&&eventoActivo&&<FormEvento ev={eventoActivo} cortadores={data.cortadores} clientes={data.clientes||[]} ubicaciones={data.ubicaciones||[]} onBack={()=>setVista("list")} onSaved={handleSaved} onDeleted={handleDeleted}/>}
+      {vista==="nuevo"&&<FormEvento isNew cortadores={data.cortadores} clientes={data.clientes||[]} ubicaciones={data.ubicaciones||[]} onBack={()=>setVista("list")} onCreate={handleCreated}/>}
       {vista==="list"&&tab==="resumen"&&<TabResumen eventos={data.eventos} stats={data.stats} onVerTodos={()=>setTab("eventos")} onEventoClick={handleEventoClick} onQuickEdit={handleQuickEdit} loading={loading}/>}
       {vista==="list"&&tab==="eventos"&&<TabEventos eventos={data.eventos} onEventoClick={handleEventoClick} onQuickEdit={handleQuickEdit} loading={loading}/>}
       {vista==="list"&&tab==="equipo"&&<TabEquipo cortadores={data.cortadores} eventos={data.eventos} onEventoClick={handleEventoClick} onQuickEdit={handleQuickEdit} loading={loading}/>}
