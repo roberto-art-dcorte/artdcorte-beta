@@ -215,6 +215,7 @@ function PanelRapido({ev,campo,cortadores,onClose,onSaved}) {
 
 function FormEvento({ev,cortadores,clientes=[],ubicaciones=[],onBack,onSaved,onDeleted,isNew=false,onCreate}) {
   const def = ev || {fecha:"",turno:"Mediodía",cliente:"",tipo:"Boda",cortador:"",jamones:1,estado:"Pendiente",obs:"",ubicNombre:"",ubicUrl:"",albaran:""};
+  // jamonesCliente viene ya como booleano desde el Sheet (col R)
   const [form,setForm]=useState({...def});
   const [dirty,setDirty]=useState(isNew);
   const [saving,setSaving]=useState(false);
@@ -228,7 +229,7 @@ function FormEvento({ev,cortadores,clientes=[],ubicaciones=[],onBack,onSaved,onD
       if(!form.cliente.trim()){setErr("El cliente es obligatorio");return;}
       setSaving(true); setErr("");
       try {
-        const res=await apiPost({accion:"crear",datos:{fecha:form.fecha,turno:form.turno,cliente:form.cliente,tipo:form.tipo,cortadores:form.cortador?[form.cortador]:[],jamones:form.jamones,estado:form.estado,descripcion:form.obs||"",nuevoCliente:form.nuevoCliente||false,ubicacion:form.nuevoUbicacion?form.ubicNombreNuevo:form.ubicNombre,ubicUrl:form.nuevoUbicacion?form.ubicUrlNueva:form.ubicUrl,nuevoUbicacion:form.nuevoUbicacion||false,albaran:form.albaran||"",jamonesCliente:form.jamonesCliente||false}});
+        const res=await apiPost({accion:"crear",datos:{fecha:form.fecha,turno:form.turno,cliente:form.cliente,tipo:form.tipo,cortadores:form.cortador?[form.cortador]:[],jamones:form.jamones,estado:form.estado,descripcion:form.obs||"",nuevoCliente:form.nuevoCliente||false,ubicacion:form.ubicNombreNuevo||form.ubicNombre,ubicUrl:form.ubicUrlNueva||form.ubicUrl,nuevoUbicacion:form.nuevoUbicacion||false,albaran:form.albaran||"",jamonesCliente:form.jamonesCliente||false}});
         if(res.ok) onCreate(res); else setErr(res.msg||"Error");
       } catch(e){setErr("Error de conexión");}
       setSaving(false);
@@ -332,13 +333,15 @@ function FormEvento({ev,cortadores,clientes=[],ubicaciones=[],onBack,onSaved,onD
             type="text"
             list="lista-ubicaciones"
             value={form.ubicNombre||""}
-            onChange={e=>{set("ubicNombre",e.target.value);set("ubicUrl","");set("nuevoUbicacion",false);}}
+            onChange={e=>{set("ubicNombre",e.target.value);set("nuevoUbicacion",false);}}
             placeholder="Nombre del lugar…"
             style={inp}
             onFocus={e=>e.target.style.borderColor="#c9a96e"}
             onBlur={e=>{
               e.target.style.borderColor="#333";
-              const match=ubicaciones.find(u=>u.nombre.toLowerCase()===e.target.value.toLowerCase().trim());
+              const val=e.target.value.trim();
+              if(!val){set("ubicUrl","");return;}
+              const match=ubicaciones.find(u=>u.nombre.toLowerCase()===val.toLowerCase());
               if(match){set("ubicNombre",match.nombre);set("ubicUrl",match.url||"");}
             }}
           />
@@ -360,16 +363,16 @@ function FormEvento({ev,cortadores,clientes=[],ubicaciones=[],onBack,onSaved,onD
             <div style={{marginTop:8,display:"grid",gap:8}}>
               <div>
                 <label style={{...lbl,color:"#60a5fa"}}>Nombre de la ubicación *</label>
-                <input type="text" value={form.ubicNombreNuevo||form.ubicNombre||""} onChange={e=>set("ubicNombreNuevo",e.target.value)} placeholder="Sala Mediterráneo…" style={inp} onFocus={e=>e.target.style.borderColor="#60a5fa"} onBlur={e=>e.target.style.borderColor="#333"}/>
+                <input type="text" value={form.ubicNombre||""} onChange={e=>set("ubicNombre",e.target.value)} placeholder="Sala Mediterráneo…" style={inp} onFocus={e=>e.target.style.borderColor="#60a5fa"} onBlur={e=>e.target.style.borderColor="#333"}/>
               </div>
               <div>
                 <label style={{...lbl,color:"#60a5fa"}}>URL Google Maps</label>
-                <input type="url" value={form.ubicUrlNueva||""} onChange={e=>set("ubicUrlNueva",e.target.value)} placeholder="https://maps.google.com/…" style={inp} onFocus={e=>e.target.style.borderColor="#60a5fa"} onBlur={e=>e.target.style.borderColor="#333"}/>
+                <input type="url" value={form.ubicUrl||""} onChange={e=>set("ubicUrl",e.target.value)} placeholder="https://maps.google.com/…" style={inp} onFocus={e=>e.target.style.borderColor="#60a5fa"} onBlur={e=>e.target.style.borderColor="#333"}/>
               </div>
               <div style={{fontSize:11,color:"#60a5fa"}}>📍 Se añadirá a la hoja Ubicaciones</div>
             </div>
           )}
-          {form.ubicUrl && !form.nuevoUbicacion && (
+          {form.ubicUrl && (
             <a href={form.ubicUrl} target="_blank" rel="noopener" style={{display:"inline-flex",alignItems:"center",gap:4,marginTop:5,color:"#60a5fa",fontSize:11,textDecoration:"none"}}>
               🗺 Ver en Maps
             </a>
